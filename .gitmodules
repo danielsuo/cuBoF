@@ -1,0 +1,3 @@
+[submodule "lib/vlfeat"]
+	path = lib/vlfeat
+	url = https://github.com/danielsuo/vlfeat
