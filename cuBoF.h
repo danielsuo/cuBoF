@@ -9,6 +9,10 @@ extern "C" {
 
 using namespace std;
 
+class VisualDictionary {
+  
+};
+
 class cuBoF {
 public:
   int num_images;
