@@ -10,10 +10,12 @@ if (APPLE)
 endif()
 find_package(OpenCV REQUIRED)
 
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib/vlfeat)
+SET(VLROOT ${CMAKE_CURRENT_SOURCE_DIR}/lib/vlfeat)
+INCLUDE_DIRECTORIES(${VLROOT})
+LINK_DIRECTORIES(${VLROOT}/bin/glnxa64)
 
 ADD_CUSTOM_TARGET(
-  vlfeat
+  VLLIB
   COMMAND make
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/lib/vlfeat
 )
@@ -23,5 +25,5 @@ set(SOURCES
 )
 
 cuda_add_executable(cuBoF ${SOURCES})
-target_link_libraries(cuBoF ${CMAKE_CURRENT_SOURCE_DIR}/lib/vlfeat/bin/glnxa64/libvl.so)
-add_dependencies(cuBoF vlfeat)
+target_link_libraries(cuBoF vl)
+add_dependencies(cuBoF VLLIB)
