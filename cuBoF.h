@@ -1,24 +1,44 @@
 #ifndef CUBOF_H
 #define CUBOF_H
 
-#include <vector>
+#include <iostream>
+#include <ctime>
+#include <math.h>
+#include <algorithm> 
+#include <opencv2/core/core.hpp>
+#include "opencv2/imgcodecs.hpp"
 
 extern "C" {
-  #include <vl/generic.h>
+  #include <vl/kmeans.h>
 }
+
+#include "lib/cuSIFT/cudaSift.h"
 
 using namespace std;
 
-class VisualDictionary {
-  
-};
-
 class cuBoF {
 public:
-  int num_images;
+  int numTrainingImages;
+  int numFeatures;
 
-  cuBoF();
+  // These are k-means for clustered SIFT points from training phase
+  float *features;
+
+  // Hold inverse document frequency weights
+  float *weights;
+
+  // Hold the kmeans and the kdforest
+  VlKMeans *kMeans;
+  VlKDForest *kdForest;
+  
+  cuBoF(int numFeatures, int numTrainingImages);
   ~cuBoF();
+
+  void train(char **paths);
+
+  // Quantize vector of features into visual word vocabulary
+  void quantize(int numSiftPoints, float *siftPointHistograms);
+
 
   void loadImages();
 
@@ -38,9 +58,7 @@ public:
 
   void loadModel();
 
-  // Quantize vector of features into visual word vocabulary
-  void computeHistogram();
-
+  
 };
 
 #endif

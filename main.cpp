@@ -1,21 +1,4 @@
-#include <iostream>
-#include <ctime>
-#include <math.h>
-#include <algorithm> 
-#include <opencv2/core/core.hpp>
-#include "opencv2/imgcodecs.hpp"
-
 #include "cuBoF.h"
-
-extern "C" {
-  #include <vl/generic.h>
-  #include <vl/kmeans.h>
-  #include <vl/sift.h>
-}
-
-#include "lib/cuSIFT/cudaSift.h"
-
-using namespace std;
 
 // TODO
 // - Examine other kmeans algorithms
@@ -23,12 +6,17 @@ using namespace std;
 
 int main(int argc, char **argv) {
 
-	VL_PRINT("Hello world!\n");
+	// VL_PRINT("Hello world!\n");
 
-  int numFrames = argc - 1;
+  int numFeatures = 20;
+  int numTrainingImages = argc - 1;
+  cuBoF bag = cuBoF(numFeatures, numTrainingImages);
+
+  bag.train(argv + 1);
 
 
-
+  // cout << data << endl;
+/*
   char *limgPath = argv[1];
   char *rimgPath = argv[2];
 
@@ -38,7 +26,6 @@ int main(int argc, char **argv) {
 
   unsigned int w = limg.cols;
   unsigned int h = limg.rows;
-  cout << "Image size = (" << w << "," << h << ")" << endl;
 
   cout << "Initializing data..." << endl;
 
@@ -65,10 +52,10 @@ int main(int argc, char **argv) {
   vl_size numData = lSiftData.numPts;
   vl_size numCenters = 20;
   vl_size dimension = 128;
-  float *data = new float[128 * numData];
+  float *vldata = new float[128 * numData];
 
   for (int i = 0; i < numData; i++) {
-    memcpy(data + 128 * i, lSiftData.h_data[i].data, 128 * sizeof(float));
+    memcpy(vldata + 128 * i, lSiftData.h_data[i].data, 128 * sizeof(float));
 
     // fprintf(stderr, "Data %d: ", i);
     // for (int j = 0; j < 128; j++) {
@@ -81,7 +68,7 @@ int main(int argc, char **argv) {
 
 	VlKMeans *kMeans = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
   vl_kmeans_set_algorithm(kMeans, VlKMeansANN);
-  vl_kmeans_init_centers_with_rand_data (kMeans, data, dimension, numData, numCenters);
+  vl_kmeans_init_centers_with_rand_data (kMeans, vldata, dimension, numData, numCenters);
   vl_kmeans_set_max_num_iterations (kMeans, 100);
   energy = vl_kmeans_get_energy(kMeans);
   centers = (float *)vl_kmeans_get_centers(kMeans);
@@ -151,18 +138,32 @@ int main(int argc, char **argv) {
 
   cout << "Computing IDF weights..." << endl;
   float *IDFWeights = new float[numCenters];
-  float numerator = log(numFrames + 1);
+  float numerator = log(numTrainingImages + 1);
   for (int i = 0; i < numCenters; i++) {
-    int numFramesWithTerm = 0;
-    if (lHistogram[i] > 0) numFramesWithTerm++;
-    if (rHistogram[i] > 0) numFramesWithTerm++;
+    int numTrainingImagesWithTerm = 0;
+    if (lHistogram[i] > 0) numTrainingImagesWithTerm++;
+    if (rHistogram[i] > 0) numTrainingImagesWithTerm++;
 
-    IDFWeights[i] = numerator / max(numFramesWithTerm, 1);
+    IDFWeights[i] = numerator / max(numTrainingImagesWithTerm, 1);
   }
 
-  cout << "Weighting and normalizing histograms..." << endl;
+  cout << "Weighting histograms..." << endl;
+  float lNorm = 0;
+  float rNorm = 0;
   for (int i = 0; i < numCenters; i++) {
-    // lHistogram[i] 
+    lHistogram[i] *= IDFWeights[i];
+    rHistogram[i] *= IDFWeights[i];
+
+    lNorm += lHistogram[i] * lHistogram[i];
+    rNorm += rHistogram[i] + rHistogram[i];
+  }
+
+  cout << "Normalizing histograms..." << endl;
+  lNorm = sqrt(lNorm);
+  rNorm = sqrt(rNorm);
+  for (int i = 0; i < numCenters; i++) {
+    lHistogram[i] /= lNorm;
+    rHistogram[i] /= rNorm;
   }
 
   cout << "IDF weights: ";
@@ -174,13 +175,15 @@ int main(int argc, char **argv) {
   free(lHistogram);
   free(rHistogram);
   free(IDFWeights);
-  free(data);
+  free(vldata);
   vl_kmeans_delete(kMeans);
   vl_kdforest_delete(kdForest);
   FreeSiftData(lSiftData);
   FreeSiftData(rSiftData);
   limg.release();
   rimg.release();
+
+  */
 
 	return 0;
 }
