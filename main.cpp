@@ -3,6 +3,7 @@
 // TODO
 // - Examine other kmeans algorithms
 // - Remove duplicate SIFT keypoints?
+// - Pull out maxNumIterations
 
 int main(int argc, char **argv) {
 
@@ -155,7 +156,7 @@ int main(int argc, char **argv) {
     rHistogram[i] *= IDFWeights[i];
 
     lNorm += lHistogram[i] * lHistogram[i];
-    rNorm += rHistogram[i] + rHistogram[i];
+    rNorm += rHistogram[i] * rHistogram[i];
   }
 
   cout << "Normalizing histograms..." << endl;

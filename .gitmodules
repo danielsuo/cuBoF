@@ -1,3 +1,6 @@
 [submodule "lib/cuSIFT"]
 	path = lib/cuSIFT
 	url = https://github.com/danielsuo/cuSIFT
+[submodule "lib/vlfeat"]
+  path = lib/vlfeat
+  url = https://github.com/danielsuo/vlfeat
