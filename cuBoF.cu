@@ -4,17 +4,15 @@ cuBoF::cuBoF(int numFeatures, int numTrainingImages) {
   this->numFeatures = numFeatures;
   this->numTrainingImages = numTrainingImages;
 
-  numFeatureDimensions = 128;
+  numDimensions = 128;
 
-  features = new float[numFeatureDimensions * numFeatures];
+  features = new float[numDimensions * numFeatures];
   weights = new float[numFeatures];
 }
 
 void cuBoF::train(char **paths) {
-  // Initialize Mat to hold Sift keypoints. This way of allocating data is
-  // really inefficient, but this example is for offline training
-  cv::Mat data = cv::Mat::zeros(0, numFeatureDimensions, CV_32FC1);
-  float *numSiftPoints = new float[numTrainingImages];
+  SiftData *siftData = new SiftData[numTrainingImages];
+  unsigned int totalNumSIFT = 0;
 
   for (int i = 0; i < numTrainingImages; i++) {
     cout << "Processing image " << i << " of " << numTrainingImages << endl;
@@ -28,53 +26,50 @@ void cuBoF::train(char **paths) {
 
     InitCuda(0);
     CudaImage cudaImg;
-    cudaImg.Allocate(w, h, iAlignUp(w, numFeatureDimensions), false, NULL, (float *)img.data);
+    cudaImg.Allocate(w, h, iAlignUp(w, numDimensions), false, NULL, (float *)img.data);
     cudaImg.Download();
 
-    SiftData siftData;
     float initBlur = 0.0f;
     float thresh = 5.0f;
-    InitSiftData(siftData, 4096, true, true);
-    ExtractSift(siftData, cudaImg, 5, initBlur, thresh, 0.0f);
+    InitSiftData(siftData[i], 4096, true, true);
+    ExtractSift(siftData[i], cudaImg, 5, initBlur, thresh, 0.0f);
 
-    for (int j = 0; j < siftData.numPts; j++) {
-      cv::Mat hist = cv::Mat(1, numFeatureDimensions, CV_32FC1, siftData.h_data[j].data);
-      cout << hist << endl << endl;;
-      data.push_back(hist);
-    }
-
-    numSiftPoints[i] = siftData.numPts;
-
-    FreeSiftData(siftData);
+    totalNumSIFT += siftData[i].numPts;
     img.release();
+  }
+
+  // Copy SIFT histograms into one contiguous block of memory
+  float *siftHistograms = new float[numDimensions * totalNumSIFT];
+  int counter = 0;
+  for (int i = 0; i < numTrainingImages; i++) {
+    for (int j = 0; j < siftData[i].numPts; j++) {
+      memcpy(siftHistograms + counter, siftData[i].h_data[j].data, numDimensions * sizeof(float));
+      counter++;
+    }
   }
 
   cout << "Clustering SIFT training data into k means" << endl;
 
   kMeans = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
   vl_kmeans_set_algorithm(kMeans, VlKMeansANN);
-  vl_kmeans_init_centers_with_rand_data (kMeans, data.data, data.cols, data.rows, numFeatures);
+  vl_kmeans_init_centers_with_rand_data (kMeans, siftHistograms, numDimensions, totalNumSIFT, numFeatures);
   vl_kmeans_set_max_num_iterations (kMeans, 500);
   features = (float *)vl_kmeans_get_centers(kMeans);
 
   cout << "Building vocabulary tree..." << endl;
   
   vl_size numTrees = 3;
-  kdForest = vl_kdforest_new(VL_TYPE_FLOAT, numFeatureDimensions, numTrees, VlDistanceL2);
+  kdForest = vl_kdforest_new(VL_TYPE_FLOAT, numDimensions, numTrees, VlDistanceL2);
   vl_size maxNumComparisons = 500;
   vl_kdforest_set_max_num_comparisons(kdForest, maxNumComparisons);
-  vl_kdforest_build(kdForest, data.rows, features);
+  vl_kdforest_build(kdForest, totalNumSIFT, features);
 
   cout << "Computing inverse document frequency weights..." << endl;
 
   // First, compute number of images with a particular term (feature)
-  int currRow = 0;
   for (int i = 0; i < numTrainingImages; i++) {
-    float *histogram = quantize(numSiftPoints[i],
-      data(cv::Rect(currRow, 0, numSiftPoints[i], numFeatureDimensions)).data);
-
-    currRow += numSiftPoints[i];
-
+    float *histogram = quantize(siftData[i]);
+    
     for (int j = 0; j < numFeatures; j++) {
       if (histogram[j] > 0) {
         weights[j]++;
@@ -87,21 +82,24 @@ void cuBoF::train(char **paths) {
   // Then, compute the inverse frequency
   float numerator = log(numTrainingImages + 1);
   for (int i = 0; i < numFeatures; i++) {
-    weights[j] = numerator / max(weights[j], 1);
+    weights[i] = numerator / max(weights[i], 1.0);
   }
 
   cout << "Done!" << endl;
 
-  data.release();
+  free(siftHistograms);
+  for (int i = 0; i < numTrainingImages; i++) {
+    FreeSiftData(siftData[i]);
+  }
 }
 
-float *cuBoF::quantize(int numSiftPoints, float *siftPointHistograms) {
+float *cuBoF::quantize(SiftData siftData) {
   vl_size numNeighbors = 1;
   VlKDForestNeighbor kdForestNeighbor;
 
   float *histogram = new float[numFeatures]();
-  for (int i = 0; i < numSiftPoints; i++) {
-    float *query = siftPointHistograms + numFeatureDimensions * i;
+  for (int i = 0; i < siftData.numPts; i++) {
+    float *query = siftData.h_data[i].data;
     vl_kdforest_query(kdForest, &kdForestNeighbor, numNeighbors, query);
     histogram[kdForestNeighbor.index]++;
   }

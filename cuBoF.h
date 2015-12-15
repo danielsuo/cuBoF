@@ -20,7 +20,7 @@ class cuBoF {
 public:
   int numTrainingImages;
   int numFeatures;
-  int numFeatureDimensions;
+  int numDimensions; // dimension of feature (128 in the case of SIFT histogram)
 
   // These are k-means for clustered SIFT points from training phase
   float *features;
@@ -39,7 +39,7 @@ public:
 
   // Quantize and normalize (via IDF) vector of features into visual word
   // vocabulary
-  float *quantize(int numSiftPoints, float *siftPointHistograms);
+  float *quantize(SiftData siftData);
 
 private:
   void normalize(float *histogram);
