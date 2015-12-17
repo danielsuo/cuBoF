@@ -24,7 +24,10 @@ float *loadTrainingDataFromList(const char *trainingDataList, int *numTrainingIm
       cout << "Processing img " << line << endl;
       cv::Mat img;
       cv::imread(line, 0).convertTo(img, CV_32FC1);
+
       memcpy(imgData + counter * *w * *h, (float *)img.data, *w * *h * sizeof(float));
+
+      counter++;
       img.release();
     }
 

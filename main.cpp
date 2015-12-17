@@ -22,9 +22,15 @@ int main(int argc, char **argv) {
 
   cv::Mat test = cv::Mat(480, 640, CV_32FC1, imgData);
 
-  imwrite("test.jpg", test);
+  // for (int i = 0; i < numTrainingImages; i++) {
+  //   std::ostringstream path;
+  //   path << "tmp/result";
+  //   path << i;
+  //   path << ".jpg";
+  //   imwrite(path.str().c_str(), cv::Mat(480, 640, CV_32FC1, imgData + i * 480 * 640));
+  // }
 
-  // free(imgData);
+  free(imgData);
 
   /*
   float *imgData = new float[numTrainingImages * w * h];
