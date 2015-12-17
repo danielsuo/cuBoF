@@ -2,6 +2,7 @@
 #include "opencv2/imgcodecs.hpp"
 
 #include "cuBoF.h"
+#include "utils.h"
 
 // TODO
 // - Examine other kmeans algorithms
@@ -9,12 +10,23 @@
 
 int main(int argc, char **argv) {
 
-  int numFeatures = 20;
-  int numTrainingImages = argc - 1;
+  int numFeatures = 500;
 
-  int w = 640;
-  int h = 480;
+  int w, h, numTrainingImages;
 
+  float *imgData = loadTrainingDataFromList("train.txt", &numTrainingImages, &w, &h);
+
+  cuBoF bag = cuBoF(numFeatures, numTrainingImages);
+  bag.train(imgData, w, h);
+  bag.save("tmp.bof");
+
+  cv::Mat test = cv::Mat(480, 640, CV_32FC1, imgData);
+
+  imwrite("test.jpg", test);
+
+  // free(imgData);
+
+  /*
   float *imgData = new float[numTrainingImages * w * h];
 
   for (int i = 0; i < numTrainingImages; i++) {
@@ -48,8 +60,36 @@ int main(int argc, char **argv) {
       cout << "asdofijasodifjaosdijf" << endl;
     }
   }
+  
 
-  cout << "Herro!" << endl;
+  cuBoF bag = cuBoF("tmp.bof");
+
+  cv::Mat img;
+  cv::imread(argv[1], 0).convertTo(img, CV_32FC1);
+
+  SiftData siftData;
+
+  InitCuda(0);
+  CudaImage cudaImg;
+  cudaImg.Allocate(w, h, iAlignUp(w, bag.numDimensions), false, NULL, (float *)img.data);
+  cudaImg.Download();
+
+  float initBlur = 0.0f;
+  float thresh = 5.0f;
+  InitSiftData(siftData, 4096, true, true);
+  ExtractSift(siftData, cudaImg, 5, initBlur, thresh, 0.0f);
+
+  float *histogram = bag.vectorize(&siftData);
+
+  cout << "Vectorized image histogram:" << endl;
+  for (int i = 0; i < bag.numFeatures; i++) {
+    cout << histogram[i] << " ";
+  }
+  cout << endl;
+
+  free(histogram);
+  FreeSiftData(siftData);
+  */
 
   // cout << data << endl;
 /*

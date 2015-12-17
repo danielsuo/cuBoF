@@ -10,7 +10,7 @@ cuBoF::cuBoF(const char *path) {
 
   features = new float[numDimensions * numFeatures];
   weights = new float[numFeatures]();
-  
+
   fread((void *)features, sizeof(float), numDimensions * numFeatures, fp);
   fread((void *)weights, sizeof(float), numFeatures, fp);
   fread((void *)&numTrees, sizeof(uint32_t), 1, fp);
@@ -46,6 +46,7 @@ void cuBoF::train(float *imgData, int w, int h) {
   for (int i = 0; i < numTrainingImages; i++) {
     cout << "Extracting SIFT for image " << i << " of " << numTrainingImages << endl;
     extractFeaturesFromImage(imgData + i * w * h, w, h, siftData[i]);
+    cout << "Num features extracted: " << siftData[i].numPts << endl;
     totalNumSIFT += siftData[i].numPts;
   }
 
@@ -55,7 +56,12 @@ void cuBoF::train(float *imgData, int w, int h) {
   int counter = 0;
   for (int i = 0; i < numTrainingImages; i++) {
     for (int j = 0; j < siftData[i].numPts; j++) {
-      memcpy(siftHistograms + counter, siftData[i].h_data[j].data, numDimensions * sizeof(float));
+      memcpy(siftHistograms + counter * numDimensions, siftData[i].h_data[j].data, numDimensions * sizeof(float));
+      for (int k = 0; k < numDimensions; k++) {
+        if (siftHistograms[counter * numDimensions + k] != siftData[i].h_data[j].data[k]) {
+          cout << siftHistograms[counter * numDimensions + k] << " " << siftData[i].h_data[j].data[k] << endl;
+        }
+      }
       counter++;
     }
   }
@@ -90,18 +96,31 @@ float *cuBoF::vectorize(SiftData *siftData) {
 void cuBoF::quantize(SiftData *siftData, float *histogram) {
   vl_size numNeighbors = 1;
   VlKDForestNeighbor kdForestNeighbor;
+
+  cout << "Num sift keypoints: " << siftData->numPts << endl;
   
   for (int i = 0; i < siftData->numPts; i++) {
     float *query = siftData->h_data[i].data;
     vl_kdforest_query(kdForest, &kdForestNeighbor, numNeighbors, query);
     histogram[kdForestNeighbor.index]++;
   }
+
+  cout << "Quantized:" << endl;
+  for (int i = 0; i < numFeatures; i++) {
+    cout << histogram[i] << " ";
+  }
+  cout << endl;
 }
 
 void cuBoF::weight(float *histogram) {
   for (int i = 0; i < numFeatures; i++) {
     histogram[i] *= weights[i];
   }
+  cout << "Weighted:" << endl;
+  for (int i = 0; i < numFeatures; i++) {
+    cout << histogram[i] << " ";
+  }
+  cout << endl;
 }
 
 void cuBoF::normalize(float *histogram) {
@@ -113,6 +132,17 @@ void cuBoF::normalize(float *histogram) {
   for (int i = 0; i < numFeatures; i++) {
     histogram[i] /= sqrt(squaresum);
   }
+  cout << "Normalized:" << endl;
+  for (int i = 0; i < numFeatures; i++) {
+    cout << histogram[i] << " ";
+  }
+  cout << endl;
+
+  float sum = 0;
+  for (int i = 0; i < numFeatures; i++) {
+    sum += histogram[i] * histogram[i];
+  }
+  cout << "Total: " << sum << endl;
 }
 
 void cuBoF::extractFeaturesFromImage(float *imgData, int w, int h, SiftData &siftData) {
@@ -130,7 +160,10 @@ void cuBoF::extractFeaturesFromImage(float *imgData, int w, int h, SiftData &sif
 void cuBoF::clusterFeatures(int numPts, float *histograms) {
   VlKMeans *kMeans = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
   vl_kmeans_set_algorithm(kMeans, VlKMeansANN);
+  fprintf(stderr, "derp 1 %d\n", numPts * numDimensions);
   vl_kmeans_init_centers_with_rand_data (kMeans, histograms, numDimensions, numPts, numFeatures);
+  fprintf(stderr, "derp 2\n");
+
   vl_kmeans_set_max_num_iterations (kMeans, 500);
   memcpy(features, (float *)vl_kmeans_get_centers(kMeans), numDimensions * numFeatures * sizeof(float));
   vl_kmeans_delete(kMeans);
@@ -153,10 +186,11 @@ void cuBoF::computeWeights(SiftData *siftData) {
     
     // Increment number of images that contain each feature
     for (int j = 0; j < numFeatures; j++) {
+
+      // This is sort of confusing; this isn't IDF weight yet. At this
+      // point, it's just the number of images so far that contain the
+      // feature
       if (histogram[j] > 0) {
-        // This is sort of confusing; this isn't IDF weight yet. At this
-        // point, it's just the number of images so far that contain the
-        // feature
         weights[j]++;
       }
 

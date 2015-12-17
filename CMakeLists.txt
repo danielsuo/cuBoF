@@ -25,6 +25,7 @@ add_custom_target(
 set(SOURCES
     main.cpp
     cuBoF.cu
+    utils.cpp
     lib/cuSIFT/cudaImage.cu
     lib/cuSIFT/cudaSiftH.cu
     lib/cuSIFT/extras/debug.h

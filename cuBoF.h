@@ -47,7 +47,11 @@ public:
   cuBoF(int numFeatures, int numTrainingImages);
   ~cuBoF();
 
-  // Train BoF model given a array of image file paths
+  // Train BoF model given a array of image file paths. We really shouldn't
+  // demand all the image data at once, instead just computing features on one
+  // image at a time and storing those histograms, but the code is much
+  // simpler this way. Maybe we'll change in the future if it becomes a
+  // problem.
   void train(float *imgData, int w, int h);
 
   // Quantize and normalize (via IDF) vector of features into visual word
