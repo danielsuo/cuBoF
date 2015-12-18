@@ -11,6 +11,7 @@
 #include "lib/cuSIFT/cudaSift.h"
 
 using namespace std;
+using namespace cv;
 
 float *loadTrainingDataFromList(const char *trainingDataList, int *numTrainingImages, int *w, int *h);
 SiftData *extractFeaturesFromImage(float *imgData, int w, int h);
