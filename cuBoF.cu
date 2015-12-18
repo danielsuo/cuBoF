@@ -39,15 +39,15 @@ cuBoF::~cuBoF() {
 }
 
 void cuBoF::train(float *imgData, int w, int h) {
-  SiftData *siftData = new SiftData[numTrainingImages];
+  vector<SiftData *>siftData;
 
   int totalNumSIFT = 0;
 
   for (int i = 0; i < numTrainingImages; i++) {
     cout << "Extracting SIFT for image " << i << " of " << numTrainingImages << endl;
-    extractFeaturesFromImage(imgData + i * w * h, w, h, siftData[i]);
-    cout << "Num features extracted: " << siftData[i].numPts << endl;
-    totalNumSIFT += siftData[i].numPts;
+    SiftData *currSiftData = extractFeaturesFromImage(imgData + i * w * h, w, h);
+    siftData.push_back(currSiftData);
+    totalNumSIFT += siftData[i]->numPts;
   }
 
   float *siftHistograms = new float[numDimensions * totalNumSIFT];
@@ -55,11 +55,11 @@ void cuBoF::train(float *imgData, int w, int h) {
   // Copy SIFT histograms into one contiguous block of memory
   int counter = 0;
   for (int i = 0; i < numTrainingImages; i++) {
-    for (int j = 0; j < siftData[i].numPts; j++) {
-      memcpy(siftHistograms + counter * numDimensions, siftData[i].h_data[j].data, numDimensions * sizeof(float));
+    for (int j = 0; j < siftData[i]->numPts; j++) {
+      memcpy(siftHistograms + counter * numDimensions, siftData[i]->h_data[j].data, numDimensions * sizeof(float));
       for (int k = 0; k < numDimensions; k++) {
-        if (siftHistograms[counter * numDimensions + k] != siftData[i].h_data[j].data[k]) {
-          cout << siftHistograms[counter * numDimensions + k] << " " << siftData[i].h_data[j].data[k] << endl;
+        if (siftHistograms[counter * numDimensions + k] != siftData[i]->h_data[j].data[k]) {
+          cout << siftHistograms[counter * numDimensions + k] << " " << siftData[i]->h_data[j].data[k] << endl;
         }
       }
       counter++;
@@ -79,7 +79,7 @@ void cuBoF::train(float *imgData, int w, int h) {
 
   free(siftHistograms);
   for (int i = 0; i < numTrainingImages; i++) {
-    FreeSiftData(siftData[i]);
+    FreeSiftData(*siftData[i]);
   }
 }
 
@@ -97,7 +97,7 @@ void cuBoF::quantize(SiftData *siftData, float *histogram) {
   vl_size numNeighbors = 1;
   VlKDForestNeighbor kdForestNeighbor;
 
-  cout << "Num sift keypoints: " << siftData->numPts << endl;
+  // cout << "Num sift keypoints: " << siftData->numPts << endl;
   
   for (int i = 0; i < siftData->numPts; i++) {
     float *query = siftData->h_data[i].data;
@@ -105,22 +105,22 @@ void cuBoF::quantize(SiftData *siftData, float *histogram) {
     histogram[kdForestNeighbor.index]++;
   }
 
-  cout << "Quantized:" << endl;
-  for (int i = 0; i < numFeatures; i++) {
-    cout << histogram[i] << " ";
-  }
-  cout << endl;
+  // cout << "Quantized:" << endl;
+  // for (int i = 0; i < numFeatures; i++) {
+  //   cout << histogram[i] << " ";
+  // }
+  // cout << endl;
 }
 
 void cuBoF::weight(float *histogram) {
   for (int i = 0; i < numFeatures; i++) {
     histogram[i] *= weights[i];
   }
-  cout << "Weighted:" << endl;
-  for (int i = 0; i < numFeatures; i++) {
-    cout << histogram[i] << " ";
-  }
-  cout << endl;
+  // cout << "Weighted:" << endl;
+  // for (int i = 0; i < numFeatures; i++) {
+  //   cout << histogram[i] << " ";
+  // }
+  // cout << endl;
 }
 
 void cuBoF::normalize(float *histogram) {
@@ -132,38 +132,23 @@ void cuBoF::normalize(float *histogram) {
   for (int i = 0; i < numFeatures; i++) {
     histogram[i] /= sqrt(squaresum);
   }
-  cout << "Normalized:" << endl;
-  for (int i = 0; i < numFeatures; i++) {
-    cout << histogram[i] << " ";
-  }
-  cout << endl;
+  // cout << "Normalized:" << endl;
+  // for (int i = 0; i < numFeatures; i++) {
+  //   cout << histogram[i] << " ";
+  // }
+  // cout << endl;
 
-  float sum = 0;
-  for (int i = 0; i < numFeatures; i++) {
-    sum += histogram[i] * histogram[i];
-  }
-  cout << "Total: " << sum << endl;
-}
-
-void cuBoF::extractFeaturesFromImage(float *imgData, int w, int h, SiftData &siftData) {
-  InitCuda(0);
-  CudaImage cudaImg;
-  cudaImg.Allocate(w, h, iAlignUp(w, numDimensions), false, NULL, imgData);
-  cudaImg.Download();
-
-  float initBlur = 0.0f;
-  float thresh = 5.0f;
-  InitSiftData(siftData, 4096, true, true);
-  ExtractSift(siftData, cudaImg, 5, initBlur, thresh, 0.0f);
+  // float sum = 0;
+  // for (int i = 0; i < numFeatures; i++) {
+  //   sum += histogram[i] * histogram[i];
+  // }
+  // cout << "Total: " << sum << endl;
 }
 
 void cuBoF::clusterFeatures(int numPts, float *histograms) {
   VlKMeans *kMeans = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
   vl_kmeans_set_algorithm(kMeans, VlKMeansANN);
-  fprintf(stderr, "derp 1 %d\n", numPts * numDimensions);
   vl_kmeans_init_centers_with_rand_data (kMeans, histograms, numDimensions, numPts, numFeatures);
-  fprintf(stderr, "derp 2\n");
-
   vl_kmeans_set_max_num_iterations (kMeans, 500);
   memcpy(features, (float *)vl_kmeans_get_centers(kMeans), numDimensions * numFeatures * sizeof(float));
   vl_kmeans_delete(kMeans);
@@ -175,14 +160,14 @@ void cuBoF::buildFeatureTree() {
   vl_kdforest_build(kdForest, numFeatures, features);
 }
 
-void cuBoF::computeWeights(SiftData *siftData) {
+void cuBoF::computeWeights(vector<SiftData *> siftData) {
   float *histogram = new float[numFeatures]();
 
   // First, compute number of images with a particular term (feature)
   for (int i = 0; i < numTrainingImages; i++) {
 
     // Get histogram of features that occur in image i
-    quantize(siftData + i, histogram);
+    quantize(siftData[i], histogram);
     
     // Increment number of images that contain each feature
     for (int j = 0; j < numFeatures; j++) {

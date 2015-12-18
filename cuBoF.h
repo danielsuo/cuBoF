@@ -4,6 +4,7 @@
 #include <iostream>
 #include <stdio.h>
 #include <ctime>
+#include <vector>
 #include <math.h>
 #include <algorithm> 
 #include <stdint.h>
@@ -13,6 +14,8 @@ extern "C" {
 }
 
 #include "lib/cuSIFT/cudaSift.h"
+
+#include "utils.h"
 
 using namespace std;
 
@@ -77,10 +80,7 @@ private:
   void buildFeatureTree();
 
   // Compute inverse document frequency weights from array of SiftData
-  void computeWeights(SiftData *siftData);
-
-  // Extra features on given image
-  void extractFeaturesFromImage(float *img, int w, int h, SiftData &siftData);  
+  void computeWeights(vector<SiftData *> siftData);
 };
 
 #endif
