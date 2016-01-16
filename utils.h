@@ -8,7 +8,7 @@
 #include <opencv2/core/core.hpp>
 #include "opencv2/imgcodecs.hpp"
 
-#include "lib/cuSIFT/cudaSift.h"
+#include "cuSIFT/cudaSift.h"
 
 using namespace std;
 using namespace cv;

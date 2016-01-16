@@ -10,10 +10,10 @@
 #include <stdint.h>
 
 extern "C" {
-  #include <vl/kmeans.h>
+  #include "vl/kmeans.h"
 }
 
-#include "lib/cuSIFT/cudaSift.h"
+#include "cuSIFT/cudaSift.h"
 
 #include "utils.h"
 
