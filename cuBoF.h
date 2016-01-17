@@ -10,7 +10,8 @@
 #include <stdint.h>
 
 extern "C" {
-  #include "vl/kmeans.h"
+  #include "vl/generic.h"
+  #include "vl/kdtree.h"
 }
 
 #include "cuSIFT/cudaSift.h"
@@ -42,6 +43,7 @@ public:
   // kdforest options
   uint32_t numTrees;
   uint32_t maxNumComparisons;
+  uint32_t maxNumIterations;
   
   // Load pre-computed BoF model from file
   cuBoF(const char *path);
@@ -56,6 +58,7 @@ public:
   // simpler this way. Maybe we'll change in the future if it becomes a
   // problem.
   void train(float *imgData, int w, int h);
+  void train(vector<SiftData *> &siftData, int totalNumSIFT);
 
   // Quantize and normalize (via IDF) vector of features into visual word
   // vocabulary
@@ -64,6 +67,9 @@ public:
   void save(const char *path);
 
 private:
+  // Number of neighbors to return when searching the tree
+  uint32_t numNeighbors;
+
   // Quantize and count features into a feature histogram
   void quantize(SiftData *siftData, float *histogram);
 

@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.1)
+
+project(cuBoF CXX)
 
 find_package(CUDA)
 if (NOT CUDA_FOUND)
@@ -29,11 +31,12 @@ add_subdirectory (lib/cuSIFT)
 
 set(SOURCES
     main.cpp
-    cuBoF.cu
+    cuBoF.cpp
     utils.cpp
 )
 
-cuda_add_library (cuBoF ${SOURCES})
-target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS} ${CUDA_LIBRARIES})
+add_library (cuBoF ${SOURCES})
+target_compile_options(cuBoF PRIVATE "-std=c++11")
+target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS})
 add_dependencies(cuBoF VLLIB)
 target_include_directories (cuBoF PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

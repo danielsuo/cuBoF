@@ -74,6 +74,39 @@ float intersect(float *hist1, float *hist2, int numBins) {
   return sum;
 }
 
+vector<int> getRandomIntVector(int lower, int upper, int length) {
+  random_device rnd_device;
+  mt19937 mersenne_engine(rnd_device());
+  uniform_int_distribution<int> dist(lower, upper);
+
+  auto gen = bind(dist, mersenne_engine);
+  vector<int> result(length);
+  generate(begin(result), end(result), gen);
+
+  return result;
+}
+
+float *getRowSubset(int total, int subset, int dim, float *data) {
+  vector<int> indices = getRandomIntVector(0, total - 1, subset);
+  float *result = new float[subset * dim];
+
+  for (int i = 0; i < indices.size(); i++) {
+    memcpy(result + i * dim, data + indices[i] * dim, sizeof(float) * dim);
+  }
+
+  return result;
+}
+
+Mat combineMatchedImages(Mat img1, Mat img2) {
+  Mat img3(img1.size().height, img1.size().width + img2.size().width, CV_32FC1);
+  Mat left(img3, Rect(0, 0, img1.size().width, img1.size().height));
+  img1.copyTo(left);
+  Mat right(img3, Rect(img1.size().width, 0, img2.size().width, img2.size().height));
+  img2.copyTo(right);
+
+  return img3;
+}
+
 /* 
  *  Software License Agreement (BSD License)
  *
