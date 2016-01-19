@@ -20,6 +20,7 @@ cuBoF::cuBoF(const char *path) {
   
   fclose(fp);
 
+  fprintf(stderr, "Read in %d features with %d dimensions\n", numFeatures, numDimensions);
   fprintf(stderr, "Max num threads %llu\n", vl_get_max_threads());
   vl_set_num_threads(vl_get_max_threads());
 
@@ -73,15 +74,10 @@ void cuBoF::train(vector<SiftData *> &siftData, int totalNumSIFT) {
   for (int i = 0; i < numTrainingImages; i++) {
     for (int j = 0; j < siftData[i]->numPts; j++) {
       memcpy(siftHistograms + counter * numDimensions, siftData[i]->h_data[j].data, numDimensions * sizeof(float));
-      // for (int k = 0; k < numDimensions; k++) {
-      //   if (siftHistograms[counter * numDimensions + k] != siftData[i]->h_data[j].data[k]) {
-      //     cout << siftHistograms[counter * numDimensions + k] << " " << siftData[i]->h_data[j].data[k] << endl;
-      //   }
-      // }
       counter++;
     }
   }
-
+  
   cout << "Clustering SIFT training data into k means" << endl;
   clusterFeatures(totalNumSIFT, siftHistograms);
 
@@ -170,15 +166,20 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
 
   // Copy a subset of the SIFT histograms to work with (15 taken from vlfeat
   // annkmeans.m). We could use entire set of histograms as well.
-  int numData = numFeatures * 15;
+  int numData = min(numPts, (int)numFeatures * 15);
   float *subset = getRowSubset(numPts, numData, numDimensions, histograms);
+  writeArrayToFile("../result/kdtree/subset.bin", subset, numData, numDimensions);
+  fprintf(stderr, "Clustering %d vectors (subsampled from %d) into %d features\n", numData, numPts, numFeatures);
 
   // Get random subset as initial kmeans centers
   float *centers = getRowSubset(numData, numFeatures, numDimensions, subset);
+  writeArrayToFile("../result/kdtree/centers.bin", centers, numFeatures, numDimensions);
+  
   vector<float> dist(numData, FLT_MAX);
   vector<int> assign(numData, 0);
   vector<float> mass(numFeatures, 0);
 
+  fprintf(stderr, "Beginning clustering with up to %d iterations and %d comparisons\n", maxNumIterations, maxNumComparisons);
   for (int i = 0; i < maxNumIterations; i++) {
     cerr << "Processing iteration " << i << endl;
 
@@ -186,7 +187,9 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
     vl_kdforest_set_max_num_comparisons(forest, maxNumComparisons);
     vl_kdforest_build(forest, numFeatures, centers);
 
-    // cerr << "Finding neighbors" << endl;
+      // bool shown = false;
+    cerr << "Finding neighbors" << endl;
+    int numDistanceZero = 0;
     for (int w = 0; w < numData; w++) {
       VlKDForestNeighbor neighbor;
       float *query = subset + w * numDimensions;
@@ -195,10 +198,14 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
         dist[w] = neighbor.distance;
         assign[w] = neighbor.index;
       }
+      if (dist[w] == 0) {
+        numDistanceZero++;
+      }
     }
+    cerr << numDistanceZero << " data had distance 0 to nearest neighbor" << endl;
 
     // Get the number of times each center was closest to a SIFT histogram
-    // cerr << "Calculating mass" << endl;
+    cerr << "Calculating mass" << endl;
     for (int j = 0; j < numFeatures; j++) {
       mass[j] = 0;
       for (int w = 0; w < numData; w++) {
@@ -210,28 +217,37 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
 
     // Update the centers with an average of the subset SIFT histograms that
     // were closest to it
-    // cerr << "Zeroing out affected centers" << endl;
+    cerr << "Zeroing out affected centers" << endl;
     for (int w = 0; w < numData; w++) {
       for (int k = 0; k < numDimensions; k++) {
         centers[assign[w] * numDimensions + k] = 0;
       }
     }
 
-    // cerr << "Recomputing centers" << endl;
+    cerr << "Recomputing centers" << endl;
     for (int w = 0; w < numData; w++) {
       for (int k = 0; k < numDimensions; k++) {
         centers[assign[w] * numDimensions + k] += subset[w * numDimensions + k];
       }
     }
 
+    cerr << "Reweighting centers" << endl;
+    for (int j = 0; j < numFeatures; j++) {
+      for (int k = 0; k < numDimensions; k++) {
+        // If the mass for a center is 0, we'd like to kill it in the next
+        // iteration
+        centers[j * numDimensions + k] /= max(mass[j], 0.0001f);
+      }
+    }
+
     // Compute the energy of the current optimization
-    // cerr << "Computing energy" << endl;
     for (int w = 0; w < numData; w++) {
       energy[i] += dist[w];
     }
+    cerr << "Computed energy: " << energy[i] << endl;
 
     // Find the centers that got no love
-    // cerr << "Finding centers to replace" << endl;
+    cerr << "Finding centers to replace" << endl;
     vector<int> centersToReplace;
     for (int j = 0; j < numFeatures; j++) {
       if (mass[j] == 0) {
@@ -239,14 +255,14 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
       }
     }
 
-    // cerr << "Replacing centers" << endl;
     // Replace them
+    fprintf(stderr, "Replacing %lu centers\n", centersToReplace.size());
     vector<int> centerReplacements = getRandomIntVector(0, numData - 1, centersToReplace.size());
     for (int j = 0; j < centersToReplace.size(); j++) {
-      for (int k = 0; k < numDimensions; k++) {
-        centers[centersToReplace[j] * numDimensions + k] = subset[centerReplacements[j] * numDimensions + k];
-      }
+      memcpy(centers + centersToReplace[j] * numDimensions, subset + centerReplacements[j] * numDimensions, sizeof(float) * numDimensions);
     }
+
+    cerr << endl;
 
     // If we haven't improved our total distance metric by some threshold,
     // break out of the loop
@@ -259,6 +275,7 @@ void cuBoF::clusterFeatures(int numPts, float *histograms) {
 
   free(subset);
   features = centers;
+  writeArrayToFile("../result/kdtree/features.bin", features, numFeatures, numDimensions);
 
   // VlKMeans *kMeans = vl_kmeans_new(VL_TYPE_FLOAT, VlDistanceL2);
   // vl_kmeans_set_algorithm(kMeans, VlKMeansANN);
@@ -305,10 +322,12 @@ void cuBoF::computeWeights(vector<SiftData *> siftData) {
   free(histogram);
 
   // Then, compute the inverse frequency
-  float numerator = log(numTrainingImages + 1);
+  float numerator = numTrainingImages + 1;
   for (int i = 0; i < numFeatures; i++) {
-    weights[i] = numerator / max(weights[i], 0.0001f);
+    weights[i] = log(numerator / max(weights[i], 0.0001f));
   }
+
+  writeArrayToFile("../result/kdtree/weights.bin", weights, 1, numFeatures);
 }
 
 void cuBoF::save(const char *path) {

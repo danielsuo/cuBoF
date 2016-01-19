@@ -14,7 +14,7 @@ extern "C" {
   #include "vl/kdtree.h"
 }
 
-#include "cuSIFT/cudaSift.h"
+#include "cuSIFT/cuSIFT.h"
 
 #include "utils.h"
 

@@ -41,7 +41,7 @@ SiftData *extractFeaturesFromImage(float *imgData, int w, int h) {
   SiftData *siftData = new SiftData();
 
   InitCuda(0);
-  CudaImage cudaImg;
+  cuImage cudaImg;
   cudaImg.Allocate(w, h, iAlignUp(w, 128), false, NULL, imgData);
   cudaImg.Download();
 
@@ -74,23 +74,34 @@ float intersect(float *hist1, float *hist2, int numBins) {
   return sum;
 }
 
-vector<int> getRandomIntVector(int lower, int upper, int length) {
+vector<int> getRandomIntVector(int lower, int upper, int length, bool replace) {
+  cerr << "Generating random vector from " << lower << " to " << upper << " with length " << length << endl;
   random_device rnd_device;
   mt19937 mersenne_engine(rnd_device());
   uniform_int_distribution<int> dist(lower, upper);
 
-  auto gen = bind(dist, mersenne_engine);
-  vector<int> result(length);
-  generate(begin(result), end(result), gen);
+  vector<int> result;
+
+  if (replace) {
+    result.resize(length);
+    auto gen = bind(dist, mersenne_engine);
+    generate(begin(result), end(result), gen);
+  } else {
+    for (int i = lower; i <= upper; i++) {
+      result.push_back(i);
+    }
+    random_shuffle(result.begin(), result.end());
+    result.resize(length);
+  }
 
   return result;
 }
 
 float *getRowSubset(int total, int subset, int dim, float *data) {
-  vector<int> indices = getRandomIntVector(0, total - 1, subset);
+  vector<int> indices = getRandomIntVector(0, total - 1, subset, false);
   float *result = new float[subset * dim];
 
-  for (int i = 0; i < indices.size(); i++) {
+  for (int i = 0; i < subset; i++) {
     memcpy(result + i * dim, data + indices[i] * dim, sizeof(float) * dim);
   }
 
@@ -105,6 +116,16 @@ Mat combineMatchedImages(Mat img1, Mat img2) {
   img2.copyTo(right);
 
   return img3;
+}
+
+void writeArrayToFile(string path, float *data, int rows, int cols) {
+  FILE *fp = fopen(path.c_str(), "wb");
+
+  fwrite(&rows, sizeof(uint32_t), 1, fp);
+  fwrite(&cols, sizeof(uint32_t), 1, fp);
+  fwrite(data, sizeof(float), rows * cols, fp);
+
+  fclose(fp);
 }
 
 /* 

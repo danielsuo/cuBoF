@@ -12,7 +12,7 @@
 #include <opencv2/core/core.hpp>
 #include "opencv2/imgcodecs.hpp"
 
-#include "cuSIFT/cudaSift.h"
+#include "cuSIFT/cuSIFT.h"
 
 using namespace std;
 using namespace cv;
@@ -21,8 +21,9 @@ float *loadTrainingDataFromList(const char *trainingDataList, int *numTrainingIm
 SiftData *extractFeaturesFromImage(float *imgData, int w, int h);
 float dot(float *hist1, float *hist2, int numBins);
 float intersect(float *hist1, float *hist2, int numBins);
-vector<int> getRandomIntVector(int lower, int upper, int length);
+vector<int> getRandomIntVector(int lower, int upper, int length, bool replace = false);
 float *getRowSubset(int total, int subset, int dim, float *data);
 Mat combineMatchedImages(Mat img1, Mat img2);
+void writeArrayToFile(string path, float *data, int rows, int cols);
 
 #endif

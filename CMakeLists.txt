@@ -36,7 +36,7 @@ set(SOURCES
 )
 
 add_library (cuBoF ${SOURCES})
-target_compile_options(cuBoF PRIVATE "-std=c++11")
+target_compile_options(cuBoF PRIVATE "-std=c++11;-g")
 target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS})
 add_dependencies(cuBoF VLLIB)
 target_include_directories (cuBoF PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
