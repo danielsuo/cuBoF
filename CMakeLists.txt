@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 
-project(cuBoF CXX)
+project(cuBoF C CXX)
 
 find_package(CUDA)
 if (NOT CUDA_FOUND)
@@ -17,8 +17,15 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/lib)
 
 set(VLROOT ${CMAKE_CURRENT_SOURCE_DIR}/lib/vlfeat)
 include_directories(${VLROOT})
-link_directories(${VLROOT}/bin/glnxa64)
-MESSAGE(${VLROOT}/bin/glnxa64)
+
+if (UNIX)
+  if (APPLE)
+    link_directories(${VLROOT}/bin/maci64)
+  else()
+    link_directories(${VLROOT}/bin/glnxa64)
+  endif()
+endif()
+
 
 add_custom_target(
   VLLIB
@@ -37,6 +44,6 @@ set(SOURCES
 
 add_library (cuBoF ${SOURCES})
 target_compile_options(cuBoF PRIVATE "-std=c++11;-g")
-target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS})
+target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(cuBoF VLLIB)
 target_include_directories (cuBoF PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
