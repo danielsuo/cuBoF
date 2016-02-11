@@ -107,14 +107,17 @@ float *cuBoF::vectorize(SiftData *siftData) {
 
 void cuBoF::quantize(SiftData *siftData, float *histogram) {
   VlKDForestNeighbor kdForestNeighbor;
-
+  VlKDForestSearcher *searcher = vl_kdforest_new_searcher(kdForest);
   // cout << "Num sift keypoints: " << siftData->numPts << endl;
   
   for (int i = 0; i < siftData->numPts; i++) {
     float *query = siftData->h_data[i].data;
-    vl_kdforest_query(kdForest, &kdForestNeighbor, numNeighbors, query);
+    // vl_kdforest_query(kdForest, &kdForestNeighbor, numNeighbors, query);
+    vl_kdforestsearcher_query(searcher, &kdForestNeighbor, numNeighbors, query);
     histogram[kdForestNeighbor.index]++;
   }
+
+  vl_kdforestsearcher_delete(searcher);
 
   // cout << "Quantized:" << endl;
   // for (int i = 0; i < numFeatures; i++) {

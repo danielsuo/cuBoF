@@ -42,7 +42,7 @@ set(SOURCES
     utils.cpp
 )
 
-add_library (cuBoF ${SOURCES})
+cuda_add_library (cuBoF ${SOURCES})
 target_compile_options(cuBoF PRIVATE "-std=c++11;-g")
 target_link_libraries(cuBoF vl cuSIFT ${OpenCV_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 add_dependencies(cuBoF VLLIB)
